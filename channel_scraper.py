@@ -91,4 +91,5 @@ def scrape_tiktok_videos(creator_username):
 
 # === Entry point ===
 if __name__ == "__main__":
-    scrape_tiktok_videos("spaceiac")
+    scrape_tiktok_videos("geomap.bytes")
+    print("Scraper finished running.")
