@@ -63,13 +63,13 @@ Please return:
 
 1. **tags** = broad academic subject areas, like:
    - "science"
-   - "physics" (more specific tag under "science")
+   - "physics"
+   - "chemistry"
    - "economics"
    - "history"
    - "philosophy"
 
 2. **topics** = specific concepts, events, or ideas covered in the video, like:
-   - "rocket propulsion"
    - "inflation"
    - "Bayes' Theorem"
    - "World War II"

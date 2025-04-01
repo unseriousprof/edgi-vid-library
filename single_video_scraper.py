@@ -95,4 +95,4 @@ def scrape_video_from_url(video_url):
 # === Entry point ===
 if __name__ == "__main__":
     # 🧠 Replace this with the specific TikTok video you want to download:
-    scrape_video_from_url("https://www.tiktok.com/@unseriousprof/video/7167154950231870763")
+    scrape_video_from_url("https://www.tiktok.com/@cleoabram/video/7476487336235289902")
