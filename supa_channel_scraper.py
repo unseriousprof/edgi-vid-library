@@ -5,10 +5,11 @@ from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
 import yt_dlp
+import time
 
 # === Setup ===
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("channel_scraper")
+logger = logging.getLogger("supa_channel_scraper")
 
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -18,22 +19,26 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 video_folder = os.path.expanduser("~/Documents/video_tmp")
 os.makedirs(video_folder, exist_ok=True)
 
-def scrape_tiktok_channel(username):
-    logger.info(f"Scraping TikTok channel: @{username}")
+BATCH_SIZE = 3  # Number of videos per batch
+
+def scrape_batch(username, start):
+    logger.info(f"Scraping batch {start}-{start + BATCH_SIZE - 1} from @{username}")
 
     ydl_opts = {
         "outtmpl": os.path.join(video_folder, "%(id)s.%(ext)s"),
         "writeinfojson": True,
+        "playliststart": start,
+        "playlistend": start + BATCH_SIZE - 1,
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             ydl.download([f"https://www.tiktok.com/@{username}"])
         except Exception as e:
-            logger.error(f"Failed to scrape @{username}: {e}")
+            logger.error(f"Failed to scrape batch {start}-{start+BATCH_SIZE-1}: {e}")
             return
 
-    # === Process .info.json metadata files ===
+    video_count = 0
     for filename in os.listdir(video_folder):
         if not filename.endswith(".info.json"):
             continue
@@ -46,16 +51,16 @@ def scrape_tiktok_channel(username):
 
             video_id = data.get("id")
 
-            # 🧠 Skip playlist-level or non-video metadata
+            # 🧠 Skip non-videos (e.g. playlist JSON)
             if not video_id or not video_id.isdigit():
-                logger.info(f"Skipping non-video metadata file: {filename}")
+                logger.info(f"Skipping non-video metadata: {filename}")
                 os.remove(filepath)
                 continue
 
             video_filename = f"{video_id}.mp4"
             local_path = os.path.join(video_folder, video_filename)
 
-            # Skip if already in Supabase
+            # Skip if already uploaded
             exists = supabase.table("videos").select("id").eq("tiktok_id", video_id).execute()
             if exists.data:
                 logger.info(f"Video {video_id} already exists, skipping.")
@@ -64,7 +69,6 @@ def scrape_tiktok_channel(username):
                     os.remove(local_path)
                 continue
 
-            # Upload video to Supabase storage
             with open(local_path, "rb") as file:
                 supabase.storage.from_("videos").upload(f"{video_id}.mp4", file)
 
@@ -91,14 +95,24 @@ def scrape_tiktok_channel(username):
 
             supabase.table("videos").insert(row).execute()
             logger.info(f"✅ Inserted video {video_id} from @{username}")
+            video_count += 1
 
-            # Clean up
             os.remove(filepath)
             os.remove(local_path)
 
         except Exception as e:
             logger.error(f"Failed to process {filename}: {e}")
 
+    return video_count
+
 # === Entry point ===
 if __name__ == "__main__":
-    scrape_tiktok_channel("spaceiac")
+    creator = "tinywhygeo"  # Change this to any creator username
+    start = 1
+    while True:
+        count = scrape_batch(creator, start)
+        if not count:
+            logger.info(f"🎉 Done scraping @{creator}!")
+            break
+        start += BATCH_SIZE
+        time.sleep(3)  # polite pause between batches
