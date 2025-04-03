@@ -112,7 +112,7 @@ def scrape_batch(username, start):
 
 # === Entry point ===
 if __name__ == "__main__":
-    creator = "joshandtinsley"  # Change this to any creator username
+    creator = "unseriousprof"  # Change this to any creator username
     start = 1
     while True:
         count = scrape_batch(creator, start)
