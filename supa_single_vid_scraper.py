@@ -21,7 +21,7 @@ video_folder = os.path.expanduser("~/Documents/video_tmp")
 os.makedirs(video_folder, exist_ok=True)
 
 def scrape_single_video(video_url):
-    logger.info(f"Scraping video: {video_url}")
+    logger.info(f"🎯 Scraping video: {video_url}")
 
     ydl_opts = {
         "outtmpl": os.path.join(video_folder, "%(id)s.%(ext)s"),
@@ -32,7 +32,7 @@ def scrape_single_video(video_url):
         try:
             ydl.download([video_url])
         except Exception as e:
-            logger.error(f"Download failed: {e}")
+            logger.error(f"❌ Download failed: {e}")
             return
 
     # Process downloaded .info.json
@@ -44,15 +44,35 @@ def scrape_single_video(video_url):
 
             try:
                 video_id = data.get("id")
+
+                # Skip non-video metadata
+                if not video_id or not video_id.isdigit():
+                    logger.info(f"Skipping non-video metadata: {filename}")
+                    os.remove(filepath)
+                    continue
+
                 video_filename = f"{video_id}.mp4"
                 local_path = os.path.join(video_folder, video_filename)
 
+                # Skip if already uploaded
+                exists = supabase.table("videos").select("id").eq("tiktok_id", video_id).execute()
+                if exists.data:
+                    logger.info(f"Video {video_id} already exists, skipping.")
+                    os.remove(filepath)
+                    if os.path.exists(local_path):
+                        os.remove(local_path)
+                    continue
+
                 # Upload to Supabase Storage
                 with open(local_path, "rb") as file:
-                    storage_path = f"{video_id}.mp4"
-                    supabase.storage.from_("videos").upload(storage_path, file)
+                    supabase.storage.from_("videos").upload(
+                        f"{video_id}.mp4",
+                        file,
+                        {"content-type": "video/mp4"} 
+                    )
 
-                public_url = f"{SUPABASE_URL.replace('.co', '.co/storage/v1/object/public')}/videos/{video_id}.mp4"
+                # Get public URL
+                public_url = supabase.storage.from_("videos").get_public_url(video_filename)
 
                 row = {
                     "tiktok_id": video_id,
@@ -73,18 +93,20 @@ def scrape_single_video(video_url):
                     "status": "uploaded"
                 }
 
-                logger.info(f"Inserting video {video_id} into Supabase...")
-                supabase.table("videos").upsert(row).execute()
-
-                # Clean up local files
-                os.remove(filepath)
-                os.remove(local_path)
-                logger.info(f"Cleaned up local files for video {video_id}")
+                logger.info(f"📦 Inserting video {video_id} into Supabase...")
+                supabase.table("videos").insert(row).execute()
 
             except Exception as e:
-                logger.error(f"Failed to process {filename}: {e}")
+                logger.error(f"⚠️ Failed to process {filename}: {e}")
+            finally:
+                # Clean up local files
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+                logger.info(f"🧹 Cleaned up local files for video {video_id}")
 
 # === Run script ===
 if __name__ == "__main__":
-    test_url = "https://www.tiktok.com/@hankgreen1/video/7485820228492954911"
+    test_url = "https://www.tiktok.com/@veritasium/video/7488663424956861742"
     scrape_single_video(test_url)

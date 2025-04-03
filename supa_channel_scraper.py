@@ -70,9 +70,14 @@ def scrape_batch(username, start):
                 continue
 
             with open(local_path, "rb") as file:
-                supabase.storage.from_("videos").upload(f"{video_id}.mp4", file)
+                supabase.storage.from_("videos").upload(
+                    f"{video_id}.mp4",
+                    file,
+                    {"content-type": "video/mp4"} 
+                )
 
-            public_url = f"{SUPABASE_URL.replace('.co', '.co/storage/v1/object/public')}/videos/{video_id}.mp4"
+            # ✅ Get clean public URL
+            public_url = supabase.storage.from_("videos").get_public_url(f"{video_id}.mp4")
 
             row = {
                 "tiktok_id": video_id,
@@ -107,7 +112,7 @@ def scrape_batch(username, start):
 
 # === Entry point ===
 if __name__ == "__main__":
-    creator = "tinywhygeo"  # Change this to any creator username
+    creator = "joshandtinsley"  # Change this to any creator username
     start = 1
     while True:
         count = scrape_batch(creator, start)
