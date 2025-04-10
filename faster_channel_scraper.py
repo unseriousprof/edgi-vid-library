@@ -7,11 +7,12 @@ from supabase import create_client
 import yt_dlp
 import time
 from tenacity import retry, wait_exponential, stop_after_attempt
+from concurrent.futures import ThreadPoolExecutor
 
 # === Setup ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("supa_channel_scraper")
-logging.getLogger("httpx").setLevel(logging.WARNING)  # Suppress httpx INFO logs
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -23,6 +24,8 @@ os.makedirs(VIDEO_FOLDER, exist_ok=True)
 
 BATCH_SIZE = 10
 MAX_RETRIES = 3
+MAX_WORKERS = 5
+SLEEP_INTERVAL = 1
 
 # === Functions ===
 @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(MAX_RETRIES))
@@ -42,10 +45,42 @@ def fetch_video_metadata(video_url):
         info = ydl.extract_info(video_url, download=False)
     return info
 
+def process_video(args):
+    video_id, info, username = args
+    output_path = os.path.join(VIDEO_FOLDER, f"{video_id}.mp4")
+    # Fresh Supabase client per thread
+    thread_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        download_video(info['webpage_url'], output_path)
+        with open(output_path, "rb") as file:
+            thread_supabase.storage.from_("videos").upload(f"{video_id}.mp4", file, {"content-type": "video/mp4"})
+        public_url = thread_supabase.storage.from_("videos").get_public_url(f"{video_id}.mp4")
+        thread_supabase.table("videos").update({
+            "video_file": public_url,
+            "upload_status": "done",
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("tiktok_id", video_id).execute()
+        try:
+            os.remove(output_path)
+        except OSError as e:
+            logger.warning(f"Failed to remove {output_path}: {e}")
+        return video_id, True, None
+    except Exception as e:
+        logger.error(f"Upload failed for {video_id}: {e}")
+        current_failure_count = thread_supabase.table("videos").select("failure_count").eq("tiktok_id", video_id).execute().data[0]["failure_count"]
+        thread_supabase.table("videos").update({
+            "upload_status": "error",
+            "failure_count": current_failure_count + 1,
+            "processing_errors": {"upload": str(e)}
+        }).eq("tiktok_id", video_id).execute()
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass  # Ignore cleanup failure here
+        return video_id, False, str(e)
+
 def scrape_channel(username):
     print(f"Starting scrape for @{username}...")
-    
-    # Fetch all video IDs from the channel
     ydl_opts = {
         "quiet": True,
         "extract_flat": True,
@@ -55,7 +90,6 @@ def scrape_channel(username):
         playlist = ydl.extract_info(f"https://www.tiktok.com/@{username}", download=False)
         video_ids = [entry['id'] for entry in playlist['entries']]
 
-    # Check existing videos in database
     existing_videos = supabase.table("videos").select("tiktok_id").in_("tiktok_id", video_ids).execute().data
     existing_ids = {video['tiktok_id'] for video in existing_videos}
 
@@ -71,7 +105,6 @@ def scrape_channel(username):
         print(f"Processing batch {i // BATCH_SIZE + 1} of {(total_videos + BATCH_SIZE - 1) // BATCH_SIZE}")
         batch_metadata = []
 
-        # Fetch metadata for batch
         for video_id in batch_ids:
             video_url = f"https://www.tiktok.com/@{username}/video/{video_id}"
             try:
@@ -89,7 +122,6 @@ def scrape_channel(username):
                 }
                 supabase.table("videos").insert(video_data).execute()
 
-        # Insert pending videos
         for video_id, info in batch_metadata:
             video_data = {
                 "tiktok_id": video_id,
@@ -113,42 +145,19 @@ def scrape_channel(username):
             }
             supabase.table("videos").insert(video_data).execute()
 
-        # Download and upload videos
-        for idx, (video_id, info) in enumerate(batch_metadata, start=i + 1):
-            try:
-                output_path = os.path.join(VIDEO_FOLDER, f"{video_id}.mp4")
-                download_video(info['webpage_url'], output_path)
-
-                with open(output_path, "rb") as file:
-                    supabase.storage.from_("videos").upload(f"{video_id}.mp4", file, {"content-type": "video/mp4"})
-
-                public_url = supabase.storage.from_("videos").get_public_url(f"{video_id}.mp4")
-
-                supabase.table("videos").update({
-                    "video_file": public_url,
-                    "upload_status": "done",
-                    "uploaded_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("tiktok_id", video_id).execute()
-
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            results = executor.map(process_video, [(video_id, info, username) for video_id, info in batch_metadata])
+        
+        for idx, (video_id, success, error) in enumerate(results, start=i + 1):
+            if success:
                 successes.append(video_id)
                 print(f"[{idx}/{total_videos}] Uploaded video {video_id}")
-
-                os.remove(output_path)
-
-            except Exception as e:
-                logger.error(f"Upload failed for {video_id}: {e}")
+            else:
                 failures.append(video_id)
-                current_failure_count = supabase.table("videos").select("failure_count").eq("tiktok_id", video_id).execute().data[0]["failure_count"]
-                supabase.table("videos").update({
-                    "upload_status": "error",
-                    "failure_count": current_failure_count + 1,
-                    "processing_errors": {"upload": str(e)}
-                }).eq("tiktok_id", video_id).execute()
                 print(f"[{idx}/{total_videos}] Failed video {video_id}")
 
-        time.sleep(3)
+        time.sleep(SLEEP_INTERVAL)
 
-    # Summary
     print("\n=== Scraping Summary ===")
     print(f"Total videos attempted: {total_videos}")
     print(f"Successfully uploaded: {len(successes)}")
@@ -157,5 +166,5 @@ def scrape_channel(username):
         print("Failed video IDs: " + ", ".join(failures))
 
 if __name__ == "__main__":
-    username = "geoglobetales"  # Replace with target TikTok username
+    username = "reason4math"
     scrape_channel(username)

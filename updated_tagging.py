@@ -10,11 +10,11 @@ import google.generativeai as genai
 
 # === Config ===
 MODEL_NAME = "gemini-2.0-flash-lite"
-BATCH_SIZE = 2  # Small batch size for testing
-MAX_RETRIES = 3  # Number of retries per video
-SLEEP_INTERVAL = 5  # Seconds to pause between batches
+BATCH_SIZE = 15  # Increased to leverage 4,000 RPM
+MAX_RETRIES = 3
+SLEEP_INTERVAL = .5  # Reduced for faster batch cycling
 USE_STRUCTURED_OUTPUT = True
-TEST_LIMIT = 5  # Test on 5 videos
+TEST_LIMIT = 300  # Test on 5 videos, adjust later for 1,000
 
 # === Load environment secrets ===
 load_dotenv()
@@ -34,67 +34,12 @@ model = genai.GenerativeModel(f"models/{MODEL_NAME}")
 response_schema = {
     "type": "object",
     "properties": {
-        "categories": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "tag": {"type": "string"},
-                    "confidence": {"type": "number"}
-                },
-                "required": ["tag", "confidence"]
-            }
-        },
-        "topics": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "topic": {"type": "string"},
-                    "confidence": {"type": "number"}
-                },
-                "required": ["topic", "confidence"]
-            }
-        },
-        "onboarding_categories": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "category": {"type": "string"},
-                    "confidence": {"type": "number"}
-                },
-                "required": ["category", "confidence"]
-            }
-        },
-        "difficulty_level": {
-            "type": "object",
-            "properties": {
-                "level": {"type": "string"},
-                "confidence": {"type": "number"}
-            },
-            "required": ["level", "confidence"]
-        },
-        "engagement_metrics": {
-            "type": "object",
-            "properties": {
-                "attention_grabbing": {"type": "number"},
-                "educational_value": {"type": "number"},
-                "entertainment_value": {"type": "number"}
-            },
-            "required": ["attention_grabbing", "educational_value", "entertainment_value"]
-        },
-        "content_flags": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "flag": {"type": "string"},
-                    "confidence": {"type": "number"}
-                },
-                "required": ["flag", "confidence"]
-            }
-        }
+        "categories": {"type": "array", "items": {"type": "object", "properties": {"tag": {"type": "string"}, "confidence": {"type": "number"}}, "required": ["tag", "confidence"]}},
+        "topics": {"type": "array", "items": {"type": "object", "properties": {"topic": {"type": "string"}, "confidence": {"type": "number"}}, "required": ["topic", "confidence"]}},
+        "onboarding_categories": {"type": "array", "items": {"type": "object", "properties": {"category": {"type": "string"}, "confidence": {"type": "number"}}, "required": ["category", "confidence"]}},
+        "difficulty_level": {"type": "object", "properties": {"level": {"type": "string"}, "confidence": {"type": "number"}}, "required": ["level", "confidence"]},
+        "engagement_metrics": {"type": "object", "properties": {"attention_grabbing": {"type": "number"}, "educational_value": {"type": "number"}, "entertainment_value": {"type": "number"}}, "required": ["attention_grabbing", "educational_value", "entertainment_value"]},
+        "content_flags": {"type": "array", "items": {"type": "object", "properties": {"flag": {"type": "string"}, "confidence": {"type": "number"}}, "required": ["flag", "confidence"]}}
     },
     "required": ["categories", "topics", "onboarding_categories", "difficulty_level", "engagement_metrics", "content_flags"]
 }
@@ -106,7 +51,7 @@ def build_prompt(transcript):
 Extract metadata from this TikTok video transcript in the following steps:
 
 **Step 1: Categories**
-Identify specific fields that the video could fall under. Such as:
+Identify specific fields that the video could fall under. Examples could include:
    - "Astrophysics"
    - "Ancient History"
    - "Organic Chemistry"
@@ -161,7 +106,7 @@ Use these definitions:
 **Step 5: Engagement Metrics**
 Predict the following engagement metrics based on the transcript. Provide scores (0.0-1.0) for each.
    Consider tone, storytelling, clarity, emotional appeal, and any signals of humor or performance:
-   - "attention_grabbing": How likely is the video to capture a viewer's immediate attention?
+   - "attention_grabbing": How likely is the video to capture a viewer's immediate attention early in the video? Consider hooks, surprising facts, emotional appeals, or dynamic delivery. A dry, technical explanation with no hook should score lower (e.g., 0.4-0.6).
    - "educational_value": How much could someone learn from this (e.g., depth of explanation, clarity of concepts)?
    - "entertainment_value": How entertaining is the video (e.g., humor, storytelling, engaging delivery)?
 
@@ -170,7 +115,7 @@ Identify potentially sensitive content in the video and assign flags from the fo
    - "graphic_violence": Description of violence & gore.
    - "political_content": Political topics that might be controversial.
    - "profanity": Use of inappropriate language.
-   - "misinformation_risk": Claims that might be unverified or misleading.
+   - "misinformation_risk": Claims that are misleading, or presented as fact without correction in the transcript. If uncertain, add it but leave confidence low (less than 0.5)
 
 **Edge Cases**:
 - Non-educational (e.g., general blogging, jokes, opinion): Return "categories": [{{"tag": "not_educational", "confidence": X}}], "topics": [{{"topic": "not_educational", "confidence": X}}], "onboarding_categories": [{{"category": "not_educational", "confidence": X}}], "difficulty_level": {{}}, "engagement_metrics": {{}}, "content_flags": []
@@ -184,54 +129,37 @@ Transcript:
 
 @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(MAX_RETRIES))
 def tag_transcript(transcript: str) -> dict:
-    """Tag a transcript using Gemini with structured output."""
     prompt = build_prompt(transcript)
     start_time = time.time()
-
     result = model.generate_content(
         prompt,
-        generation_config={
-            "response_mime_type": "application/json",
-            "response_schema": response_schema
-        } if USE_STRUCTURED_OUTPUT else None
+        generation_config={"response_mime_type": "application/json", "response_schema": response_schema} if USE_STRUCTURED_OUTPUT else None
     )
     parsed_result = json.loads(result.text)
 
-    # Validate and clamp confidence scores
     for category in parsed_result.get("categories", []):
-        conf = category.get("confidence", 0)
-        category["confidence"] = max(0, min(1, conf))
-
+        category["confidence"] = max(0, min(1, category.get("confidence", 0)))
     for topic in parsed_result.get("topics", []):
-        conf = topic.get("confidence", 0)
-        topic["confidence"] = max(0, min(1, conf))
-
+        topic["confidence"] = max(0, min(1, topic.get("confidence", 0)))
     for onboarding_category in parsed_result.get("onboarding_categories", []):
-        conf = onboarding_category.get("confidence", 0)
-        onboarding_category["confidence"] = max(0, min(1, conf))
-
+        onboarding_category["confidence"] = max(0, min(1, onboarding_category.get("confidence", 0)))
     difficulty = parsed_result.get("difficulty_level", {})
-    conf = difficulty.get("confidence", 0)
-    difficulty["confidence"] = max(0, min(1, conf))
-
+    difficulty["confidence"] = max(0, min(1, difficulty.get("confidence", 0)))
     engagement = parsed_result.get("engagement_metrics", {})
-    for key, value in engagement.items():
-        engagement[key] = max(0, min(1, value))
-
+    for key in engagement:
+        engagement[key] = max(0, min(1, engagement[key]))
     for flag in parsed_result.get("content_flags", []):
-        conf = flag.get("confidence", 0)
-        flag["confidence"] = max(0, min(1, conf))
+        flag["confidence"] = max(0, min(1, flag.get("confidence", 0)))
 
-    # Calculate tagging time
     tagging_time = time.time() - start_time
     parsed_result["tagging_time"] = tagging_time
     return parsed_result
 
-def process_video(video):
-    """Process a single video for tagging."""
+def process_video(args):
+    video, idx, total = args
     video_id = video["id"]
+    tags_and_metrics = None  # Define upfront
     try:
-        # Fetch transcript from transcripts table
         transcript_data = supabase.table("transcripts").select("transcript").eq("video_id", video_id).execute().data
         if not transcript_data:
             raise ValueError(f"No transcript found for video {video_id}")
@@ -268,7 +196,7 @@ def process_video(video):
             }
 
         supabase.table("videos").update(update).eq("id", video_id).execute()
-        return video_id, True, None
+        return video_id, True, None, tags_and_metrics["tagging_time"] if tags_and_metrics else 0.0
 
     except Exception as e:
         current_failure_count = supabase.table("videos").select("failure_count").eq("id", video_id).execute().data[0]["failure_count"]
@@ -279,10 +207,10 @@ def process_video(video):
             "tagging_model_used": MODEL_NAME,
             "tagging_time": None
         }).eq("id", video_id).execute()
-        return video_id, False, str(e)
+        return video_id, False, str(e), 0.0
 
 def tag_videos_in_batch(limit: int = TEST_LIMIT):
-    """Tag all transcribed videos in batches."""
+    print(f"Starting tagging for up to {limit} videos...")
     response = (
         supabase.table("videos")
         .select("id")
@@ -298,32 +226,32 @@ def tag_videos_in_batch(limit: int = TEST_LIMIT):
         print("No videos to tag.")
         return
 
+    print(f"Found {total_videos} videos to process")
     successes = []
     failures = []
 
-    # Process in batches with parallel processing
     total_batches = (total_videos + BATCH_SIZE - 1) // BATCH_SIZE
     for i in range(0, total_videos, BATCH_SIZE):
         batch = videos[i:i + BATCH_SIZE]
-        print(f"Processing batch {i // BATCH_SIZE + 1} of {total_batches}...")
+        print(f"Processing batch {i // BATCH_SIZE + 1} of {total_batches} ({len(batch)} videos)")
 
+        batch_with_idx = [(video, i + j + 1, total_videos) for j, video in enumerate(batch)]
         with Pool(processes=BATCH_SIZE) as pool:
-            results = pool.map(process_video, batch)
+            results = pool.map(process_video, batch_with_idx)
 
-        for video_id, success, error in results:
+        for video_id, success, error, tagging_time in results:
             if success:
                 successes.append(video_id)
+                print(f"[{len(successes) + len(failures)}/{total_videos}] Tagged video {video_id} in {tagging_time:.1f}s")
             else:
                 failures.append((video_id, error))
+                print(f"[{len(successes) + len(failures)}/{total_videos}] Failed video {video_id}: {error}")
 
-        time.sleep(SLEEP_INTERVAL)  # Pause to avoid rate limiting
+        time.sleep(SLEEP_INTERVAL)
 
-    # Summary
     print("\n=== Tagging Summary ===")
     print(f"Total videos processed: {total_videos}")
     print(f"Successfully tagged: {len(successes)}")
-    if successes:
-        print(f"Success IDs: {', '.join(successes[:5])}{'...' if len(successes) > 5 else ''}")
     print(f"Failed: {len(failures)}")
     if failures:
         print("Failures:")

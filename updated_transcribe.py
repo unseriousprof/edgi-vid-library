@@ -206,4 +206,4 @@ def run_transcription_batch(limit: int = 100):
             logger.info(f"  ...and {len(failures) - 5} more")
 
 if __name__ == "__main__":
-    run_transcription_batch(limit=10)  # Start with a small limit for testing
+    run_transcription_batch(limit=200)  # Start with a small limit for testing
