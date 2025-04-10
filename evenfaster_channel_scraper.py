@@ -1,13 +1,13 @@
 import os
 import json
 import logging
-from datetime import datetime, timezone, time as dt_time
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client
 import yt_dlp
 import time
 from tenacity import retry, wait_exponential, stop_after_attempt
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # === Setup ===
 logging.basicConfig(level=logging.INFO)
@@ -24,8 +24,9 @@ os.makedirs(VIDEO_FOLDER, exist_ok=True)
 
 BATCH_SIZE = 10
 MAX_RETRIES = 3
-MAX_WORKERS = 5
+MAX_WORKERS = 10
 SLEEP_INTERVAL = 1
+MAX_CREATOR_WORKERS = 3
 
 # === Functions ===
 @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(MAX_RETRIES))
@@ -73,8 +74,9 @@ def process_video(args):
             pass
         return video_id, False, str(e)
 
+@retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(2))
 def scrape_channel(username):
-    start_time = time.time()  # Start timing
+    start_time = time.time()
     print(f"Starting scrape for @{username}...")
     ydl_opts = {"quiet": True, "extract_flat": True, "playlistend": None}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -149,14 +151,12 @@ def scrape_channel(username):
 
         time.sleep(SLEEP_INTERVAL)
 
-    # Retry failed videos
     if failures:
         print("\nRetrying failed videos...")
         retry_successes = []
         retry_failures = []
         
         for video_id in failures:
-            # Reset Supabase columns
             supabase.table("videos").update({
                 "upload_status": "pending",
                 "failure_count": 0,
@@ -167,7 +167,7 @@ def scrape_channel(username):
             try:
                 info = fetch_video_metadata(video_url)
                 result = process_video((video_id, info, username))
-                if result[1]:  # success
+                if result[1]:
                     retry_successes.append(video_id)
                     print(f"[Retry] Uploaded video {video_id}")
                 else:
@@ -184,20 +184,71 @@ def scrape_channel(username):
                 print(f"[Retry] Failed video {video_id} again")
 
         successes.extend(retry_successes)
-        failures = retry_failures  # Only keep persistent failures
+        failures = retry_failures
 
-    # Summary with runtime
     end_time = time.time()
     runtime_seconds = end_time - start_time
-    runtime_minutes = runtime_seconds / 60
-    print("\n=== Scraping Summary ===")
-    print(f"Total videos attempted: {total_videos}")
-    print(f"Successfully uploaded: {len(successes)}")
-    print(f"Failed: {len(failures)}")
-    print(f"Total runtime: {runtime_seconds:.1f} seconds ({runtime_minutes:.2f} minutes)")
-    if failures:
-        print("Failed video IDs: " + ", ".join(failures))
+    return {
+        "username": username,
+        "total_videos": total_videos,
+        "successes": successes,
+        "failures": failures,
+        "runtime_seconds": runtime_seconds
+    }
+
+def scrape_multiple_creators(creators):
+    total_start_time = time.time()
+    results = {}
+    
+    if len(creators) == 1:
+        results[creators[0]] = scrape_channel(creators[0])
+    else:
+        failed_creators = []
+        with ThreadPoolExecutor(max_workers=MAX_CREATOR_WORKERS) as executor:
+            future_to_creator = {executor.submit(scrape_channel, creator): creator for creator in creators}
+            for future in as_completed(future_to_creator):
+                creator = future_to_creator[future]
+                try:
+                    results[creator] = future.result()
+                except Exception as e:
+                    print(f"Scraping @{creator} failed: {e}")
+                    failed_creators.append(creator)
+
+        # Retry failed creators
+        if failed_creators:
+            print("\nRetrying failed creators...")
+            for creator in failed_creators:
+                try:
+                    results[creator] = scrape_channel(creator)
+                    print(f"Retry succeeded for @{creator}")
+                except Exception as e:
+                    print(f"Retry for @{creator} failed again: {e}")
+                    results[creator] = {
+                        "username": creator,
+                        "total_videos": 0,
+                        "successes": [],
+                        "failures": [],
+                        "runtime_seconds": 0,
+                        "error": str(e)
+                    }
+
+    # Print all summaries at the end
+    print("\n=== Scraping Summaries ===")
+    for creator, result in results.items():
+        print(f"\nSummary for @{creator}:")
+        print(f"Total videos attempted: {result['total_videos']}")
+        print(f"Successfully uploaded: {len(result['successes'])}")
+        print(f"Failed: {len(result['failures'])}")
+        print(f"Runtime: {result['runtime_seconds']:.1f} seconds ({result['runtime_seconds']/60:.2f} minutes)")
+        if result['failures']:
+            print("Failed video IDs: " + ", ".join(result['failures']))
+        if "error" in result:
+            print(f"Error: {result['error']}")
+
+    total_end_time = time.time()
+    total_runtime = total_end_time - total_start_time
+    print(f"\n=== Overall Runtime ===\n{total_runtime:.1f} seconds ({total_runtime/60:.2f} minutes)")
 
 if __name__ == "__main__":
-    username = "gatenerd"
-    scrape_channel(username)
+    creators = ["talkingcities", "designsecretsss"]
+    scrape_multiple_creators(creators)
