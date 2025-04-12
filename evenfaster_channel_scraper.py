@@ -74,17 +74,44 @@ def process_video(args):
             pass
         return video_id, False, str(e)
 
+def pre_check_channel(username):
+    """Test if the channel's playlist is accessible before scraping."""
+    ydl_opts = {"quiet": True, "extract_flat": True, "playlist_items": "1"}  # Fetch only the first video
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.extract_info(f"https://www.tiktok.com/@{username}", download=False)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
 @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(2))
 def scrape_channel(username):
     start_time = time.time()
     print(f"Starting scrape for @{username}...")
-    ydl_opts = {"quiet": True, "extract_flat": True, "playlistend": None}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        playlist = ydl.extract_info(f"https://www.tiktok.com/@{username}", download=False)
-        video_ids = [entry['id'] for entry in playlist['entries']]
 
-    existing_videos = supabase.table("videos").select("tiktok_id").in_("tiktok_id", video_ids).execute().data
-    existing_ids = {video['tiktok_id'] for video in existing_videos}
+    # Pre-check the channel
+    can_scrape, error = pre_check_channel(username)
+    if not can_scrape:
+        raise Exception(f"Cannot scrape @{username}: {error}")
+
+    # Fetch the playlist
+    ydl_opts = {"quiet": True, "extract_flat": True, "playlistend": None}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            playlist = ydl.extract_info(f"https://www.tiktok.com/@{username}", download=False)
+            if not playlist or 'entries' not in playlist:
+                raise Exception("Failed to fetch playlist entries")
+            video_ids = [entry['id'] for entry in playlist['entries'] if 'id' in entry]
+    except Exception as e:
+        raise Exception(f"Failed to fetch playlist for @{username}: {str(e)}")
+
+    # Batch the video_ids to avoid Supabase query limits
+    CHUNK_SIZE = 500  # Safe limit for Supabase IN clause
+    existing_ids = set()
+    for i in range(0, len(video_ids), CHUNK_SIZE):
+        chunk = video_ids[i:i + CHUNK_SIZE]
+        existing_videos = supabase.table("videos").select("tiktok_id").in_("tiktok_id", chunk).execute().data
+        existing_ids.update(video['tiktok_id'] for video in existing_videos)
 
     videos_to_process = [vid for vid in video_ids if vid not in existing_ids]
     total_videos = len(videos_to_process)
@@ -98,10 +125,33 @@ def scrape_channel(username):
         print(f"Processing batch {i // BATCH_SIZE + 1} of {(total_videos + BATCH_SIZE - 1) // BATCH_SIZE}")
         batch_metadata = []
 
+        # Fetch metadata and insert rows only if successful
         for video_id in batch_ids:
             video_url = f"https://www.tiktok.com/@{username}/video/{video_id}"
             try:
                 info = fetch_video_metadata(video_url)
+                if not info or 'webpage_url' not in info:
+                    raise Exception("Incomplete metadata")
+                video_data = {
+                    "tiktok_id": video_id,
+                    "creator_username": username,
+                    "video_url": info.get("webpage_url"),
+                    "title": info.get("title"),
+                    "description": info.get("description"),
+                    "upload_date": datetime.strptime(info.get("upload_date", "19700101"), "%Y%m%d").date().isoformat(),
+                    "views": info.get("view_count", 0),
+                    "likes": info.get("like_count", 0),
+                    "comments": info.get("comment_count", 0),
+                    "shares": info.get("share_count", 0),
+                    "saved": info.get("favorite_count", 0),
+                    "resolution": f"{info.get('width', 0)}x{info.get('height', 0)}" if info.get("width") else None,
+                    "duration": info.get("duration", 0),
+                    "upload_status": "pending",
+                    "transcribe_status": "pending",
+                    "tag_status": "pending",
+                    "failure_count": 0,
+                }
+                supabase.table("videos").insert(video_data).execute()
                 batch_metadata.append((video_id, info))
             except Exception as e:
                 logger.error(f"Metadata fetch failed for {video_id}: {e}")
@@ -115,29 +165,7 @@ def scrape_channel(username):
                 }
                 supabase.table("videos").insert(video_data).execute()
 
-        for video_id, info in batch_metadata:
-            video_data = {
-                "tiktok_id": video_id,
-                "creator_username": username,
-                "video_url": info.get("webpage_url"),
-                "title": info.get("title"),
-                "description": info.get("description"),
-                "upload_date": datetime.strptime(info.get("upload_date", "19700101"), "%Y%m%d").date().isoformat(),
-                "views": info.get("view_count", 0),
-                "likes": info.get("like_count", 0),
-                "comments": info.get("comment_count", 0),
-                "shares": info.get("share_count", 0),
-                "saved": info.get("favorite_count", 0),
-                "video_download_url": info.get("url", ""),
-                "resolution": f"{info.get('width', 0)}x{info.get('height', 0)}" if info.get("width") else None,
-                "duration": info.get("duration", 0),
-                "upload_status": "pending",
-                "transcribe_status": "pending",
-                "tag_status": "pending",
-                "failure_count": 0,
-            }
-            supabase.table("videos").insert(video_data).execute()
-
+        # Process videos that have metadata
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             results = executor.map(process_video, [(video_id, info, username) for video_id, info in batch_metadata])
         
@@ -148,6 +176,12 @@ def scrape_channel(username):
             else:
                 failures.append(video_id)
                 print(f"[{idx}/{total_videos}] Failed video {video_id}")
+                # Update the row to error status if download/upload fails
+                supabase.table("videos").update({
+                    "upload_status": "error",
+                    "failure_count": 1,
+                    "processing_errors": {"upload": str(error)}
+                }).eq("tiktok_id", video_id).execute()
 
         time.sleep(SLEEP_INTERVAL)
 
@@ -214,7 +248,6 @@ def scrape_multiple_creators(creators):
                     print(f"Scraping @{creator} failed: {e}")
                     failed_creators.append(creator)
 
-        # Retry failed creators
         if failed_creators:
             print("\nRetrying failed creators...")
             for creator in failed_creators:
@@ -232,7 +265,6 @@ def scrape_multiple_creators(creators):
                         "error": str(e)
                     }
 
-    # Print all summaries at the end
     print("\n=== Scraping Summaries ===")
     for creator, result in results.items():
         print(f"\nSummary for @{creator}:")
@@ -250,5 +282,5 @@ def scrape_multiple_creators(creators):
     print(f"\n=== Overall Runtime ===\n{total_runtime:.1f} seconds ({total_runtime/60:.2f} minutes)")
 
 if __name__ == "__main__":
-    creators = ["talkingcities", "designsecretsss"]
+    creators = ["human.1011"]
     scrape_multiple_creators(creators)

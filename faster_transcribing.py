@@ -30,17 +30,18 @@ HEADERS = {
 }
 
 TRANSCRIPTION_MODEL = "AssemblyAI Nano"
-BATCH_SIZE = 50  # Up from 8
-SLEEP_INTERVAL = 1  # Down from 2
+BATCH_SIZE = 30 
+SLEEP_INTERVAL = 1
 MAX_RETRIES = 3
 
+@retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(3))
 def validate_url(url: str) -> bool:
     try:
-        res = requests.head(url, timeout=5)
+        res = requests.head(url, timeout=10)  # Increased from 5s to 10s
         return res.status_code == 200
     except Exception as e:
         logger.warning(f"URL validation failed for {url}: {e}")
-        return False
+        raise  # Let tenacity retry
 
 def group_words_into_segments(words: list) -> list:
     if not words:
@@ -62,7 +63,7 @@ def group_words_into_segments(words: list) -> list:
     return [s for s in segments if s["text"].strip()]
 
 @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(MAX_RETRIES))
-def transcribe_with_assemblyai(video: dict, poll_interval: int = 2) -> dict:  # Up from 1s
+def transcribe_with_assemblyai(video: dict, poll_interval: int = 2) -> dict:
     video_id = video.get("id", "unknown")
     audio_url = video.get("video_file", "").rstrip("?")
     if not audio_url or not isinstance(audio_url, str):
@@ -108,6 +109,17 @@ def process_video(video):
         }).eq("id", video_id).execute()
         return video_id, False, str(e), None, video
 
+@retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(3))
+def update_video(video_update):
+    supabase.table("videos").update({
+        "transcribe_status": video_update["transcribe_status"],
+        "transcribed_at": video_update["transcribed_at"],
+        "language": video_update["language"],
+        "duration": video_update["duration"],
+        "transcription_model_used": video_update["transcription_model_used"],
+        "transcription_time": video_update["transcription_time"]
+    }).eq("id", video_update["id"]).execute()
+
 def run_transcription_batch(limit: int = 100):
     start_time = time.time()
     print(f"Fetching up to {limit} videos with upload_status='done' and transcribe_status='pending'")
@@ -136,7 +148,6 @@ def run_transcription_batch(limit: int = 100):
         with Pool(processes=BATCH_SIZE) as pool:
             results = pool.map(process_video, batch)
 
-        # Batch DB updates
         transcript_data = []
         video_updates = []
         for video_id, success, error, result, video in results:
@@ -162,20 +173,11 @@ def run_transcription_batch(limit: int = 100):
                 failures.append((video_id, error))
                 print(f"[{len(successes) + len(failures)}/{total_videos}] Failed video {video_id}: {error}")
 
-        # Bulk insert transcripts
         if transcript_data:
             supabase.table("transcripts").insert(transcript_data).execute()
-        # Bulk update videos
         if video_updates:
             for update in video_updates:
-                supabase.table("videos").update({
-                    "transcribe_status": update["transcribe_status"],
-                    "transcribed_at": update["transcribed_at"],
-                    "language": update["language"],
-                    "duration": update["duration"],
-                    "transcription_model_used": update["transcription_model_used"],
-                    "transcription_time": update["transcription_time"]
-                }).eq("id", update["id"]).execute()
+                update_video(update)
 
         time.sleep(SLEEP_INTERVAL)
 
@@ -202,14 +204,16 @@ def run_transcription_batch(limit: int = 100):
                         "word_timestamps": result[3]["word_timestamps"]
                     }]
                     supabase.table("transcripts").insert(transcript_data).execute()
-                    supabase.table("videos").update({
+                    video_update = {
+                        "id": video_id,
                         "transcribe_status": "done",
                         "transcribed_at": datetime.now(timezone.utc).isoformat(),
                         "language": result[3]["language"],
                         "duration": result[3]["duration"],
                         "transcription_model_used": TRANSCRIPTION_MODEL,
                         "transcription_time": result[3]["transcription_time"]
-                    }).eq("id", video_id).execute()
+                    }
+                    update_video(video_update)  # Use the retry-wrapped function
                 else:
                     retry_failures.append((video_id, result[2]))
                     print(f"[Retry] Failed video {video_id} again: {result[2]}")
@@ -230,4 +234,4 @@ def run_transcription_batch(limit: int = 100):
         print("Failed video IDs: " + ", ".join([vid for vid, _ in failures]))
 
 if __name__ == "__main__":
-    run_transcription_batch(limit=200)
+    run_transcription_batch(limit=1000)

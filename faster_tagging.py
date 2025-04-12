@@ -294,4 +294,4 @@ def tag_videos_in_batch(limit: int = TEST_LIMIT):
             print(f"  ...and {len(failures) - 5} more")
 
 if __name__ == "__main__":
-    tag_videos_in_batch(limit=50)
+    tag_videos_in_batch(limit=1000)
