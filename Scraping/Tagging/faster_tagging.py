@@ -165,12 +165,23 @@ def process_video(args):
             transcript = ""
         else:
             transcript = transcript_data[0]["transcript"].strip()
-        
+
         if not transcript or len(transcript) < 20:
             if description and len(description) > 10:  # Use description if meaningful
                 tags_and_metrics = tag_transcript("", description)
             else:
+                # Replace existing related data
+                supabase.table("video_categories").delete().eq("video_id", video_id).execute()
+                supabase.table("video_categories").insert([{"category": "insufficient_data", "confidence": 1.0, "video_id": video_id}]).execute()
+
+                supabase.table("video_topics").delete().eq("video_id", video_id).execute()
+                supabase.table("video_topics").insert([{"topic": "insufficient_data", "confidence": 1.0, "video_id": video_id}]).execute()
+
+                supabase.table("video_difficulties").delete().eq("video_id", video_id).execute()
+                supabase.table("video_difficulties").insert([{"difficulty": "insufficient_data", "confidence": 1.0, "video_id": video_id}]).execute()
+
                 update = {
+            # TODO: remove cateogries, topics, and difficulty_level
                     "categories": [{"tag": "insufficient_data", "confidence": 1.0}],
                     "topics": [{"topic": "insufficient_data", "confidence": 1.0}],
                     "onboarding_categories": [{"category": "insufficient_data", "confidence": 1.0}],
@@ -188,7 +199,39 @@ def process_video(args):
         else:
             tags_and_metrics = tag_transcript(transcript, description)
 
+        # Prepare new data for batch insert
+        categories_data = [
+            {"category": cat["tag"], "confidence": cat["confidence"], "video_id": video_id}
+            for cat in tags_and_metrics["categories"]
+        ]
+        topics_data = [
+            {"topic": topic["topic"], "confidence": topic["confidence"], "video_id": video_id}
+            for topic in tags_and_metrics["topics"]
+        ]
+        difficulty = tags_and_metrics.get("difficulty_level", {})
+        difficulties_data = []
+        if difficulty and difficulty.get("level"):
+            difficulties_data.append({
+                "difficulty": difficulty["level"],
+                "confidence": difficulty["confidence"],
+                "video_id": video_id
+            })
+
+        # Batch insert new categories/topics/difficulties if arrays are not empty
+        supabase.table("video_categories").delete().eq("video_id", video_id).execute()
+        if categories_data:
+            supabase.table("video_categories").insert(categories_data).execute()
+
+        supabase.table("video_topics").delete().eq("video_id", video_id).execute()
+        if topics_data:
+            supabase.table("video_topics").insert(topics_data).execute()
+
+        supabase.table("video_difficulties").delete().eq("video_id", video_id).execute()
+        if difficulties_data:
+            supabase.table("video_difficulties").insert(difficulties_data).execute()
+
         update = {
+            # TODO: remove cateogries, topics, and difficulty_level
             "categories": tags_and_metrics["categories"],
             "topics": tags_and_metrics["topics"],
             "onboarding_categories": tags_and_metrics["onboarding_categories"],

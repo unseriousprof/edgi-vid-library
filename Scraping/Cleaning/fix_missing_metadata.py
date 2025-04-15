@@ -35,8 +35,8 @@ offset = 0
 while True:
     try:
         response = (
-            supabase.table("videos")
-            .select("id, tiktok_id, video_url, creator_username")
+            supabase.from_("videos")
+            .select("videos.id, videos.tiktok_id, videos.video_url, creators(username)")
             .or_("views.eq.0,title.is.null,description.is.null,resolution.is.null,duration.eq.0,comments.is.null,likes.is.null")
             .range(offset, offset + page_size - 1)
             .execute()
@@ -67,7 +67,7 @@ failed_videos = []
 for video in missing_metadata_videos:
     try:
         tiktok_id = video["tiktok_id"]
-        creator_username = video["creator_username"]
+        creator_username = video["creator"]["username"]
         video_url = video["video_url"] if video["video_url"] else f"https://www.tiktok.com/@{creator_username}/video/{tiktok_id}"
         info = fetch_video_metadata(video_url)
         if not info or "webpage_url" not in info:

@@ -132,9 +132,13 @@ def scrape_channel(username):
                 info = fetch_video_metadata(video_url)
                 if not info or 'webpage_url' not in info:
                     raise Exception("Incomplete metadata")
+
+                creator = supabase.table("creators").upsert({"username": username}, {"username": username}).execute().data
+
                 video_data = {
                     "tiktok_id": video_id,
-                    "creator_username": username,
+                    "creator_username": username, # TODO: Remove
+                    "creator_id": creator[0]["id"],
                     "video_url": info.get("webpage_url"),
                     "title": info.get("title"),
                     "description": info.get("description"),
@@ -159,6 +163,7 @@ def scrape_channel(username):
                 video_data = {
                     "tiktok_id": video_id,
                     "creator_username": username,
+                    "creator_id": creator[0]["id"],
                     "upload_status": "error",
                     "failure_count": 1,
                     "processing_errors": {"metadata": str(e)}
@@ -168,7 +173,7 @@ def scrape_channel(username):
         # Process videos that have metadata
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             results = executor.map(process_video, [(video_id, info, username) for video_id, info in batch_metadata])
-        
+
         for idx, (video_id, success, error) in enumerate(results, start=i + 1):
             if success:
                 successes.append(video_id)
@@ -189,14 +194,14 @@ def scrape_channel(username):
         print("\nRetrying failed videos...")
         retry_successes = []
         retry_failures = []
-        
+
         for video_id in failures:
             supabase.table("videos").update({
                 "upload_status": "pending",
                 "failure_count": 0,
                 "processing_errors": None
             }).eq("tiktok_id", video_id).execute()
-            
+
             video_url = f"https://www.tiktok.com/@{username}/video/{video_id}"
             try:
                 info = fetch_video_metadata(video_url)
@@ -233,7 +238,7 @@ def scrape_channel(username):
 def scrape_multiple_creators(creators):
     total_start_time = time.time()
     results = {}
-    
+
     if len(creators) == 1:
         results[creators[0]] = scrape_channel(creators[0])
     else:
