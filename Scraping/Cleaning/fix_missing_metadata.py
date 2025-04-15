@@ -37,8 +37,7 @@ while True:
         response = (
             supabase.from_("videos")
             .select("videos.id, videos.tiktok_id, videos.video_url, creators(username)")
-            .or_("videos.views.eq.0,videos.title.is.null,videos.description.is.null,videos.resolution.is.null,videos.duration.eq.0,videos.comments.is.null,videos.likes.is.null")
-            .join("creators", "creators.video_id", "videos.id")
+            .or_("views.eq.0,title.is.null,description.is.null,resolution.is.null,duration.eq.0,comments.is.null,likes.is.null")
             .range(offset, offset + page_size - 1)
             .execute()
         )
