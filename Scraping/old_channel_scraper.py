@@ -73,15 +73,18 @@ def scrape_batch(username, start):
                 supabase.storage.from_("videos").upload(
                     f"{video_id}.mp4",
                     file,
-                    {"content-type": "video/mp4"} 
+                    {"content-type": "video/mp4"}
                 )
 
             # ✅ Get clean public URL
             public_url = supabase.storage.from_("videos").get_public_url(f"{video_id}.mp4")
 
+            creator = supabase.table("creators").upsert({"username": username}, {"username": username}).execute().data
+
             row = {
                 "tiktok_id": video_id,
-                "creator_username": username,
+                "creator_username": username, # TODO: Remove
+                "creator_id": creator[0]["id"],
                 "video_url": data.get("webpage_url"),
                 "title": data.get("title"),
                 "description": data.get("description"),
