@@ -1,0 +1,83 @@
+2025-04-22 20:47:38,148 [INFO] 🔍  Test run starting…
+2025-04-22 20:47:39,062 [INFO] HTTP Request: GET https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?select=id%2Cname&category=is.null&limit=40 "HTTP/2 200 OK"
+2025-04-22 20:47:39,065 [INFO] Processing 40 topics…
+2025-04-22 20:47:40,208 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.psychology "HTTP/2 200 OK"
+2025-04-22 20:47:40,209 [INFO] Psychology → psychology
+2025-04-22 20:47:40,889 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.mental_health "HTTP/2 200 OK"
+2025-04-22 20:47:40,890 [INFO] Mental Health → psychology
+2025-04-22 20:47:41,510 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.self_improvement "HTTP/2 200 OK"
+2025-04-22 20:47:41,511 [INFO] Self-Improvement → other
+2025-04-22 20:47:42,142 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.depression "HTTP/2 200 OK"
+2025-04-22 20:47:42,142 [INFO] Depression → psychology
+2025-04-22 20:47:42,753 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.interpersonal_communication "HTTP/2 200 OK"
+2025-04-22 20:47:42,754 [INFO] Interpersonal Communication → psychology
+2025-04-22 20:47:43,288 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.behavioral_psychology "HTTP/2 200 OK"
+2025-04-22 20:47:43,289 [INFO] Behavioral Psychology → psychology
+2025-04-22 20:47:43,878 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.goal_setting "HTTP/2 200 OK"
+2025-04-22 20:47:43,879 [INFO] Goal Setting → psychology
+2025-04-22 20:47:44,516 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.habit_formation "HTTP/2 200 OK"
+2025-04-22 20:47:44,517 [INFO] Habit Formation → psychology
+2025-04-22 20:47:45,148 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.linguistics "HTTP/2 200 OK"
+2025-04-22 20:47:45,148 [INFO] Linguistics → words_languages
+2025-04-22 20:47:45,781 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.phonology "HTTP/2 200 OK"
+2025-04-22 20:47:45,781 [INFO] Phonology → words_languages
+2025-04-22 20:47:46,391 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.speech_pathology "HTTP/2 200 OK"
+2025-04-22 20:47:46,392 [INFO] Speech Pathology → biology_life_sciences
+2025-04-22 20:47:47,057 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.not_educational "HTTP/2 200 OK"
+2025-04-22 20:47:47,057 [INFO] not_educational → other
+2025-04-22 20:47:47,559 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.anxiety "HTTP/2 200 OK"
+2025-04-22 20:47:47,559 [INFO] Anxiety → psychology
+2025-04-22 20:47:48,231 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.self_help "HTTP/2 200 OK"
+2025-04-22 20:47:48,231 [INFO] Self-Help → psychology
+2025-04-22 20:47:48,873 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.biology "HTTP/2 200 OK"
+2025-04-22 20:47:48,874 [INFO] Biology → biology_life_sciences
+2025-04-22 20:47:49,486 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.zoology "HTTP/2 200 OK"
+2025-04-22 20:47:49,486 [INFO] Zoology → biology_life_sciences
+2025-04-22 20:47:50,208 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.animals "HTTP/2 200 OK"
+2025-04-22 20:47:50,209 [INFO] Animals → biology_life_sciences
+2025-04-22 20:47:50,792 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.social_psychology "HTTP/2 200 OK"
+2025-04-22 20:47:50,793 [INFO] Social Psychology → psychology
+2025-04-22 20:47:51,282 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.relationships "HTTP/2 200 OK"
+2025-04-22 20:47:51,283 [INFO] Relationships → psychology
+2025-04-22 20:47:52,018 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.friendship "HTTP/2 200 OK"
+2025-04-22 20:47:52,018 [INFO] Friendship → psychology
+2025-04-22 20:47:52,602 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.self_esteem "HTTP/2 200 OK"
+2025-04-22 20:47:52,603 [INFO] Self-Esteem → psychology
+2025-04-22 20:47:53,252 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.chemistry "HTTP/2 200 OK"
+2025-04-22 20:47:53,252 [INFO] Chemistry → other
+2025-04-22 20:47:53,802 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.organic_chemistry "HTTP/2 200 OK"
+2025-04-22 20:47:53,802 [INFO] Organic Chemistry → biology_life_sciences
+2025-04-22 20:47:54,374 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.extraction "HTTP/2 200 OK"
+2025-04-22 20:47:54,374 [INFO] Extraction → other
+2025-04-22 20:47:54,924 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.experiment "HTTP/2 200 OK"
+2025-04-22 20:47:54,924 [INFO] Experiment → lab_experiments
+2025-04-22 20:47:55,501 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.piperine "HTTP/2 200 OK"
+2025-04-22 20:47:55,502 [INFO] Piperine → biology_life_sciences
+2025-04-22 20:47:55,976 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.black_pepper "HTTP/2 200 OK"
+2025-04-22 20:47:55,977 [INFO] Black Pepper → other
+2025-04-22 20:47:56,505 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.bullying "HTTP/2 200 OK"
+2025-04-22 20:47:56,505 [INFO] Bullying → psychology
+2025-04-22 20:47:57,049 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.cognitive_behavioral_therapy "HTTP/2 200 OK"
+2025-04-22 20:47:57,050 [INFO] Cognitive Behavioral Therapy → psychology
+2025-04-22 20:47:57,513 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.paleontology "HTTP/2 200 OK"
+2025-04-22 20:47:57,513 [INFO] Paleontology → biology_life_sciences
+2025-04-22 20:47:58,029 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.dinosaurs "HTTP/2 200 OK"
+2025-04-22 20:47:58,607 [INFO] Dinosaurs → biology_life_sciences
+2025-04-22 20:47:59,257 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.arctic "HTTP/2 200 OK"
+2025-04-22 20:47:59,258 [INFO] Arctic → geography
+2025-04-22 20:47:59,793 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.clinical_psychology "HTTP/2 200 OK"
+2025-04-22 20:47:59,794 [INFO] Clinical Psychology → psychology
+2025-04-22 20:48:00,325 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.current_events "HTTP/2 200 OK"
+2025-04-22 20:48:00,325 [INFO] Current Events → other
+2025-04-22 20:48:00,899 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.science "HTTP/2 200 OK"
+2025-04-22 20:48:00,900 [INFO] Science → other
+2025-04-22 20:48:01,387 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.health "HTTP/2 200 OK"
+2025-04-22 20:48:01,388 [INFO] Health → biology_life_sciences
+2025-04-22 20:48:01,932 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.marine_biology "HTTP/2 200 OK"
+2025-04-22 20:48:01,933 [INFO] Marine Biology → biology_life_sciences
+2025-04-22 20:48:02,401 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.geology "HTTP/2 200 OK"
+2025-04-22 20:48:02,402 [INFO] Geology → other
+2025-04-22 20:48:02,841 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.evolution "HTTP/2 200 OK"
+2025-04-22 20:48:02,842 [INFO] Evolution → biology_life_sciences
+2025-04-22 20:48:03,395 [INFO] HTTP Request: PATCH https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/topics?id=eq.cell_biology "HTTP/2 200 OK"
+2025-04-22 20:48:03,396 [INFO] Cell Biology → biology_life_sciences
