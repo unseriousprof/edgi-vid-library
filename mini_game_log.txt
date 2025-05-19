@@ -1,0 +1,12 @@
+2025-05-18 21:54:57,771 [INFO] HTTP Request: POST https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/rpc/fetch_top_transcripts "HTTP/2 400 Bad Request"
+2025-05-18 22:05:46,834 [INFO] HTTP Request: GET https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/videos?select=id%2Cviews%2Ctranscript_id%2Ctranscripts%28transcript%2Call_categories%2Ceducational_rating%29&order=views.desc&limit=1000 "HTTP/2 500 Internal Server Error"
+2025-05-18 22:10:35,095 [INFO] HTTP Request: POST https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/rpc/fetch_top_transcripts "HTTP/2 200 OK"
+2025-05-18 22:10:35,211 [INFO] 🧠  Generating games for 892 videos …
+2025-05-18 22:11:03,369 [INFO] HTTP Request: POST https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/mini_games_duplicate?on_conflict=video_id "HTTP/2 201 Created"
+2025-05-18 22:11:03,374 [INFO] ✓ 8e1592f9… → ['mcq_set']
+2025-05-18 22:11:47,141 [ERROR] ✗ 1c2f0a9e… RetryError[<Future at 0x1048d10f0 state=finished raised ValueError>]
+2025-05-18 22:11:55,417 [INFO] HTTP Request: POST https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/mini_games_duplicate?on_conflict=video_id "HTTP/2 201 Created"
+2025-05-18 22:11:55,417 [INFO] ✓ 7a094bbb… → ['mcq_set']
+2025-05-18 22:12:03,880 [INFO] HTTP Request: POST https://dqqsldnguadcbqibnmhi.supabase.co/rest/v1/mini_games_duplicate?on_conflict=video_id "HTTP/2 201 Created"
+2025-05-18 22:12:03,881 [INFO] ✓ a41d0552… → ['mcq_set']
+2025-05-18 22:12:38,514 [ERROR] ✗ 8a0aa3f2… RetryError[<Future at 0x1048ed850 state=finished raised ValueError>]

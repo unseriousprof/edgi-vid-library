@@ -6,7 +6,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 import google.generativeai as genai
 
 # ---------- CONFIG ----------
-MODEL_NAME     = "gemini-2.0-flash"
+MODEL_NAME     = "gemini-2.5-flash-preview-04-17"
 SAMPLE_SIZE    = 1000          # top 1000 videos by views
 MAX_RETRIES    = 3
 SLEEP_SECONDS  = 4
@@ -91,7 +91,7 @@ def run(sample_size:int=SAMPLE_SIZE):
         try:
             payload = draft_mini_game(txt)
 
-            supabase.table("mini_games").upsert({
+            supabase.table("mini_games_duplicate").upsert({
                 "video_id":            vid,
                 "should_generate_game": payload["should_generate_game"],
                 "skip_reason":         payload.get("skip_reason", ""),
